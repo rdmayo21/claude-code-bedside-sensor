@@ -1,7 +1,7 @@
 #!/bin/bash
 # The bedside sensor firmware (Adafruit QT Py ESP32 Pico + SHT41), one command per step.
 #   ./firmware.sh setup         install the ESP32 board support and the SHT4x library (once;
-#                               the first time downloads several hundred MB)
+#                               downloads about 1.7 GB, needs about 6 GB of disk)
 #   ./firmware.sh build         compile. Without device_config.h it compiles a throwaway copy
 #                               with the example settings (proves the code builds; not flashable)
 #   ./firmware.sh ports         list the serial ports a plugged-in board could be on
@@ -68,6 +68,7 @@ case "${1:-}" in
         if ! arduino-cli core list | grep -q '^esp32:esp32 '; then
             arduino-cli core update-index --additional-urls "$CORE_URL"
             arduino-cli core install "esp32:esp32@$CORE_VERSION" --additional-urls "$CORE_URL"
+            arduino-cli cache clean  # the downloaded archives (~1.7 GB) are no longer needed
         fi
         if ! arduino-cli lib list | grep -q '^Adafruit SHT4x Library '; then
             arduino-cli lib update-index
@@ -126,7 +127,7 @@ case "${1:-}" in
         show_serial "$(find_port monitor)" "${2:-30}"
         ;;
     *)
-        sed -n '2,13p' "$(basename "$0")" | sed 's/^# \{0,1\}//'
+        sed -n '2,12p' "$(basename "$0")" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

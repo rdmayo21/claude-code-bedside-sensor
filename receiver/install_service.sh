@@ -13,7 +13,7 @@ MODE=${1:-install}
 HOME_DIR="$HOME/bedside-sensor"
 SCRIPT="$HOME_DIR/bedside_receiver.py"
 LOG="$HOME_DIR/receiver.log"
-PORT=7690
+PORT=${PORT:-7690}   # PORT=7691 receiver/install_service.sh to change it
 OS=${BEDSIDE_OS:-$(uname -s)}
 PY=$(command -v python3 || true)
 [ -n "$PY" ] || { echo "python3 not found" >&2; exit 1; }
@@ -34,6 +34,8 @@ plist() {
     <array>
         <string>$PY</string>
         <string>$SCRIPT</string>
+        <string>--port</string>
+        <string>$PORT</string>
     </array>
     <key>WorkingDirectory</key><string>$HOME_DIR</string>
     <key>RunAtLoad</key><true/>
@@ -52,7 +54,7 @@ Description=Bedside sensor receiver
 After=network-online.target
 
 [Service]
-ExecStart=$PY $SCRIPT
+ExecStart=$PY $SCRIPT --port $PORT
 WorkingDirectory=$HOME_DIR
 Restart=always
 RestartSec=10
@@ -62,6 +64,16 @@ StandardError=append:$LOG
 [Install]
 WantedBy=default.target
 EOF
+}
+
+# A copy started by hand (AGENTS.md step 5) records its PID in ~/bedside-sensor/receiver.pid.
+stop_hand_started() {
+    local pidfile="$HOME_DIR/receiver.pid"
+    if [ -f "$pidfile" ]; then
+        kill "$(cat "$pidfile")" 2>/dev/null || true
+        rm -f "$pidfile"
+        sleep 1
+    fi
 }
 
 wait_healthy() {
@@ -82,7 +94,7 @@ case "$OS:$MODE" in
     Darwin:install)
         mkdir -p "$HOME_DIR" "$(dirname "$PLIST")"
         cp bedside_receiver.py "$SCRIPT"
-        pkill -f 'bedside_receiver.py' 2>/dev/null || true   # a copy started by hand
+        stop_hand_started
         launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
         plist > "$PLIST"
         launchctl bootstrap "gui/$(id -u)" "$PLIST"
@@ -92,7 +104,7 @@ case "$OS:$MODE" in
     Linux:install)
         mkdir -p "$HOME_DIR" "$(dirname "$UNIT")"
         cp bedside_receiver.py "$SCRIPT"
-        pkill -f 'bedside_receiver.py' 2>/dev/null || true
+        stop_hand_started
         unit > "$UNIT"
         systemctl --user daemon-reload
         systemctl --user enable --now "$UNIT_NAME"

@@ -84,7 +84,15 @@ def write_atomically(dest: Path, body: bytes) -> None:
 
 
 def local_name() -> str:
-    """This computer's mDNS name without .local (macOS LocalHostName, else the short hostname)."""
+    """This computer's mDNS name, lowercased, without .local (macOS LocalHostName, else hostname).
+
+    mDNS names are case-insensitive; the sensor is given the lowercase form.
+    """
+    return _raw_local_name().lower()
+
+
+def _raw_local_name() -> str:
+    """The name as the system reports it."""
     if sys.platform == "darwin":
         try:
             out = subprocess.run(
@@ -251,7 +259,10 @@ def check(port: int, token_file: Path, out_dir: Path) -> int:
     name = local_name()
     try:
         socket.gethostbyname(f"{name}.local")
-        print(f"ok      the sensor will look for {name}.local")
+        print(
+            f"ok      the sensor will look for {name}.local (resolves here; whether other devices "
+            "can find it shows at the first flash)"
+        )
     except OSError:
         print(
             f"WARN    {name}.local does not resolve on this computer. The sensor may still find it "

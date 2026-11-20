@@ -66,4 +66,4 @@ echo "wrote $(pwd)/device_config.h (mode 600)"
 echo "  receiver name: $host.local"
 echo "  time zone:     $tz"
 if [ -n "${RECEIVER_IP:-}" ]; then echo "  fixed address: $RECEIVER_IP"; fi
-echo "next: ./firmware.sh flash  (with the board plugged in)"
+echo "next, from the repo folder: ./esp32_sensor/firmware.sh build"
