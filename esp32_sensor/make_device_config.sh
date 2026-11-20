@@ -11,6 +11,7 @@
 #   TOKEN_FILE=path      token file (default ~/.config/bedside_receiver/token)
 #   TZ_INFO='...'        POSIX time zone string, if the detected one is wrong
 #   RECEIVER_IP=a.b.c.d  fixed address, only if the sensor cannot find the computer by name
+#   RECEIVER_PORT=n      the receiver listens on a port other than 7690
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -39,6 +40,10 @@ if [ -n "${RECEIVER_IP:-}" ] && ! printf '%s' "$RECEIVER_IP" | grep -Eq '^[0-9]{
     echo "RECEIVER_IP must look like 192.168.1.50" >&2
     exit 1
 fi
+if [ -n "${RECEIVER_PORT:-}" ] && ! printf '%s' "$RECEIVER_PORT" | grep -Eq '^[0-9]{1,5}$'; then
+    echo "RECEIVER_PORT must be a number" >&2
+    exit 1
+fi
 
 read -r -p "Wi-Fi network name (a 2.4 GHz network; the board cannot join 5 GHz): " ssid
 [ -n "$ssid" ] || { echo "empty Wi-Fi name, stopping" >&2; exit 1; }
@@ -59,6 +64,7 @@ umask 077
     printf '#define RECEIVER_HOST "%s"\n' "$(c_escape "$host")"
     printf '#define TZ_INFO "%s"\n' "$tz"
     if [ -n "${RECEIVER_IP:-}" ]; then printf '#define RECEIVER_IP "%s"\n' "$RECEIVER_IP"; fi
+    if [ -n "${RECEIVER_PORT:-}" ]; then printf '#define RECEIVER_PORT %s\n' "$RECEIVER_PORT"; fi
 } > device_config.h
 chmod 600 device_config.h
 unset pass token
@@ -66,4 +72,5 @@ echo "wrote $(pwd)/device_config.h (mode 600)"
 echo "  receiver name: $host.local"
 echo "  time zone:     $tz"
 if [ -n "${RECEIVER_IP:-}" ]; then echo "  fixed address: $RECEIVER_IP"; fi
+if [ -n "${RECEIVER_PORT:-}" ]; then echo "  port:          $RECEIVER_PORT"; fi
 echo "next, from the repo folder: ./esp32_sensor/firmware.sh build"

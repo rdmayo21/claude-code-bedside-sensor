@@ -118,6 +118,43 @@ def lan_address() -> str:
         return ""
 
 
+def macos_firewall_python() -> str:
+    """One check line on whether the macOS firewall lets Python accept connections, or ''."""
+    tool = "/usr/libexec/ApplicationFirewall/socketfilterfw"
+    if sys.platform != "darwin" or not os.path.exists(tool):
+        return ""
+    try:
+        state = subprocess.run([tool, "--getglobalstate"], capture_output=True, text=True).stdout
+    except OSError:
+        return ""
+    if "enabled" not in state.lower():
+        return "ok      macOS firewall is off"
+    candidates = [
+        Path(sys.base_prefix) / "Resources" / "Python.app",
+        Path(sys.executable).resolve(),
+    ]
+    for app in candidates:
+        if not app.exists():
+            continue
+        try:
+            out = subprocess.run(
+                [tool, "--getappblocked", str(app)], capture_output=True, text=True
+            ).stdout.lower()
+        except OSError:
+            break
+        if "permitted" in out:
+            return "ok      macOS firewall is on and lets Python accept connections"
+        if "blocked" in out:
+            return (
+                "MISSING macOS firewall blocks Python: System Settings, Network, Firewall, "
+                "Options, set Python to Allow incoming connections"
+            )
+    return (
+        "WARN    macOS firewall is on and Python is not listed yet: when macOS asks whether "
+        "Python may accept incoming connections, choose Allow"
+    )
+
+
 def read_token(path: Path) -> str:
     """Return the token in path, or '' when it is missing or unreadable."""
     try:
@@ -268,6 +305,11 @@ def check(port: int, token_file: Path, out_dir: Path) -> int:
             f"WARN    {name}.local does not resolve on this computer. The sensor may still find it "
             "if mDNS is running (Linux: avahi-daemon); if not, use a fixed address (RECEIVER_IP)."
         )
+    firewall = macos_firewall_python()
+    if firewall:
+        print(firewall)
+        if firewall.startswith("MISSING"):
+            missing += 1
     lan = lan_address()
     if lan and is_allowed_client(lan) and not lan.startswith("127."):
         print(f"ok      this computer's LAN address is {lan} (for RECEIVER_IP, if ever needed)")

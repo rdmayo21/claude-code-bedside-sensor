@@ -86,6 +86,7 @@ case "${1:-}" in
         need_cli
         if [ -f device_config.h ]; then
             arduino-cli compile --fqbn "$FQBN" .
+            echo "build ok (with your device_config.h)"
         else
             tmp=$(mktemp -d)
             mkdir -p "$tmp/esp32_sensor"
@@ -94,8 +95,8 @@ case "${1:-}" in
             echo "(no device_config.h yet: compiling a throwaway copy with the example settings)"
             arduino-cli compile --fqbn "$FQBN" "$tmp/esp32_sensor"
             rm -rf "$tmp"
+            echo "build ok (example settings only: no device_config.h yet, so not flashable)"
         fi
-        echo "build ok"
         ;;
     ports)
         found=$(list_ports)
@@ -110,7 +111,7 @@ case "${1:-}" in
         echo "uploading to $port"
         arduino-cli upload --fqbn "$FQBN" -p "$port" .
         echo "flashed. Expect: 'SHT41 found', 'now NN.NN C, NN.N %RH', 'Wi-Fi connected',"
-        echo "'receiver: <address>', 'hello ...: HTTP 200', 'clock synced'"
+        echo "'receiver: <address> (last good ...)', 'hello ...: HTTP 200', 'clock synced'"
         show_serial "$port" "${SECONDS_TO_SHOW:-40}"
         ;;
     bench)

@@ -70,9 +70,14 @@ EOF
 stop_hand_started() {
     local pidfile="$HOME_DIR/receiver.pid"
     if [ -f "$pidfile" ]; then
-        kill "$(cat "$pidfile")" 2>/dev/null || true
+        local pid
+        pid=$(cat "$pidfile")
+        # Only if that PID is still a receiver: PIDs get reused.
+        if ps -p "$pid" -o command= 2>/dev/null | grep -q 'bedside_receiver.py'; then
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+        fi
         rm -f "$pidfile"
-        sleep 1
     fi
 }
 
