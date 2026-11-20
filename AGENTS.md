@@ -41,14 +41,18 @@ QT Py ESP32 + SHT41  ── Wi-Fi after 07:30 ──>  bedside_receiver.py on th
 - Changing what starts at login (step 6) needs the human's yes.
 - You will write outside this folder (`~/bedside-sensor`, `~/.config/bedside_receiver`), open a
   network port (7690) and download packages. If your sandbox blocks that, ask the human to allow it.
+- Keep the repo somewhere durable (for example `~/claude-code-bedside-sensor`), not a temporary
+  folder: the human will run commands from it later. Whenever you hand the human a command,
+  start it with `cd <the absolute path of this folder> &&`.
 - Long-running commands: never run `./esp32_sensor/firmware.sh monitor 0` or `tail -f`; they
   never return. Every command below returns on its own.
 
 ## Steps
 
 1. **Tools.** Run:
-   `for t in git python3 uv arduino-cli c++ curl perl; do command -v "$t" >/dev/null || echo "MISSING $t"; done`
-   No output means all present. Install what is missing:
+   `for t in git python3 uv arduino-cli c++ curl perl; do command -v "$t" >/dev/null || echo "MISSING $t"; done; [ "$(uname)" = Darwin ] && ! xcode-select -p >/dev/null 2>&1 && echo "MISSING xcode command line tools"; true`
+   No output means all present. (On macOS `git`, `python3` and `c++` exist as stubs until the
+   command line tools are installed; `xcrun: error: invalid active developer path` means the same.) Install what is missing:
    - `arduino-cli`: macOS `brew install arduino-cli`; Linux
      `curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$HOME/.local/bin sh`
      (make sure `~/.local/bin` is on `PATH`).
@@ -57,11 +61,13 @@ QT Py ESP32 + SHT41  ── Wi-Fi after 07:30 ──>  bedside_receiver.py on th
    - `c++` or `python3` on macOS: **HUMAN** runs `xcode-select --install` and clicks Install.
      Linux: **HUMAN** runs `sudo apt install build-essential python3` (or their distro's equivalent).
    - Python must be 3.9 or newer: `python3 -c 'import sys; print(sys.version_info >= (3, 9))'` prints `True`.
-2. **Board support.** Check for about 6 GB free (`df -h ~`), then run
+2. **Board support.** Check for about 6 GB free (`df -h ~`; less: ask the human to free space), then run
    `./esp32_sensor/firmware.sh setup`. The first run downloads about 1.7 GB (the ESP32 core and
    its compilers; a few minutes; the progress output is long) and pulls in some unrelated Adafruit
    display libraries as dependencies, which is normal. It must end with lines starting
-   `esp32:esp32` and `Adafruit SHT4x Library`, then `setup ok`.
+   `esp32:esp32` and `Adafruit SHT4x Library`, then `setup ok`. A `note: ESP32 core X is installed`
+   line means another version was already there; it is kept, and usually compiles fine (step 3
+   will tell).
 3. **Tests.** `./check.sh` must end with `all checks passed`. It runs the firmware logic tests,
    the receiver tests and a full compile for the board with the example settings (look for
    `Sketch uses ... bytes (33%) of program storage space`). The first compile takes a minute or two.
@@ -79,9 +85,10 @@ QT Py ESP32 + SHT41  ── Wi-Fi after 07:30 ──>  bedside_receiver.py on th
    - The sensor and this computer must be on the same main network: guest networks and
      "client isolation" stop devices on the Wi-Fi from reaching each other.
 5. **Receiver.** Make the shared token, start the receiver in the background, and test it:
-   - First, is one already running? `curl -s http://127.0.0.1:7690/health` must print nothing.
-     If it prints `ok`: a receiver from an earlier attempt with `~/bedside-sensor/receiver.pid`
-     is stopped with `kill "$(cat ~/bedside-sensor/receiver.pid)" && rm ~/bedside-sensor/receiver.pid`;
+   - First, is one already running? `curl -s http://127.0.0.1:7690/health` must print nothing
+     (curl's exit code 7 is expected). If it prints `ok`: a receiver from an earlier attempt with
+     `~/bedside-sensor/receiver.pid` is stopped with
+     `pid=$(cat ~/bedside-sensor/receiver.pid 2>/dev/null) && ps -p "$pid" -o command= | grep -q bedside_receiver.py && kill "$pid"; rm -f ~/bedside-sensor/receiver.pid`;
      the login service from step 6 is kept (skip to the `--test-upload` line below). Anything
      else: find it with `lsof -nP -iTCP:7690 -sTCP:LISTEN` and ask the human before stopping it.
    - `python3 receiver/bedside_receiver.py --make-token` prints `ok token created at ...` (or
@@ -181,7 +188,7 @@ Read that computer's `~/bedside-sensor/receiver.log` in steps 9 and 12, and look
 
 | What you see | Cause and fix |
 |---|---|
-| `firmware.sh ports` lists nothing | Charge-only cable, a hub, or a loose plug. Swap to a known-good USB-C **data** cable straight into the computer. Linux: add the user to the `dialout` group (`sudo usermod -aG dialout $USER`, then log out and in). Old macOS without a driver for the board's CH9102F chip: install WCH's CH34x driver |
+| `firmware.sh ports` prints `no serial ports that look like a board` | Charge-only cable, a hub, or a loose plug. Swap to a known-good USB-C **data** cable straight into the computer. Linux: add the user to the `dialout` group (`sudo usermod -aG dialout $USER`, then log out and in). Old macOS without a driver for the board's CH9102F chip: install WCH's CH34x driver |
 | Upload fails with `Failed to connect to ESP32 ... no sync reply` or `No serial data received` | Same causes as above, cable first. If a good cable still fails: hold the board's **BOOT** button, press and release **RST**, release BOOT, run `flash` again, then press RST once it finishes |
 | Upload starts, then dies a few KB in (`The chip stopped responding`, `Serial data stream stopped`) | A bad cable or hub. This is what happened in the video: the cable passed power and short commands but dropped every long write. A known-good data cable plugged directly in fixed it |
 | `Resource busy` / port in use | Another program has the port open (Arduino IDE, `screen`, another monitor). Close it |
@@ -192,7 +199,7 @@ Read that computer's `~/bedside-sensor/receiver.log` in steps 9 and 12, and look
 | `--check` says `WARN macOS firewall is on and Python is not listed yet` or `MISSING macOS firewall blocks Python` | The human allows it: answer Allow when macOS asks, or System Settings, Network, Firewall, Options, set Python to Allow incoming connections. Then `--check` again |
 | `--check` says `WARN NAME.local does not resolve` | Linux without `avahi-daemon`/`nss-mdns`: start avahi (`sudo systemctl enable --now avahi-daemon`) or use the `RECEIVER_IP` fix above. On macOS this should not happen |
 | `hello ...: HTTP -1` | Nothing answered at that address: receiver not running (step 6), the macOS firewall blocking Python (System Settings, Network, Firewall, Options: allow Python) or a Linux firewall blocking port 7690, or the address is stale |
-| `cannot listen on port 7690` in the receiver log, or `--test-upload` says 401 or "not in" the folder | Another receiver is already running (an earlier attempt or the login service). Use the one that is running, or stop it (`receiver/install_service.sh --remove`, or `kill "$(cat ~/bedside-sensor/receiver.pid)"`) and start again |
+| `cannot listen on port 7690` in the receiver log, or `--test-upload` says 401 or "not in" the folder | Another receiver is already running (an earlier attempt or the login service). Use the one that is running, or stop it (`receiver/install_service.sh --remove`, or step 5's stop line) and start again |
 | `upload night ...: HTTP 401` | Token mismatch: the token file was remade after flashing. HUMAN reruns step 7, then flash again |
 | `HTTP 403 forbidden network` | The sensor's address is not a private LAN address; the receiver only accepts 10.x, 172.16-31.x and 192.168.x |
 | No file in the morning | Receiver not running (`curl -s http://127.0.0.1:7690/health`; step 6), computer asleep or off (the sensor retries hourly and keeps about 3 nights), or no hello lines at all (the board has no power or no Wi-Fi at the bed). Read `~/bedside-sensor/receiver.log` for `POST /bedside/temp` lines and their status |
