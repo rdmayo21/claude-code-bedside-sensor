@@ -1,0 +1,11 @@
+# Private: Wi-Fi password and receiver token. Written by make_device_config.sh.
+esp32_sensor/device_config.h
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+uv.lock
+*.log
+*.part
+enclosure/print/*.step
+.DS_Store
